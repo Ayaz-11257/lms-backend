@@ -1,0 +1,234 @@
+import User from "../models/user.model.js";
+import Payment from "../models/payment.model.js";
+// import { razorpay } from "../server";
+import { razorpay } from "../server.js";
+import AppError from "../utils/error.util.js";
+import crypto from "crypto";
+
+export const getRazorpayApiKey = async (req, res, next) => {
+    res.status(200).json({
+        success: true,
+        message: 'Razorpay API key',
+        key: process.env.RAZORPAY_KEY_ID
+    });
+}
+
+export const buySubscription = async (req, res, next) => {
+    try{
+        const { id } = req.user;
+    const user = await User.findById(id);
+
+    if(!user) {
+        return next(
+            new AppError('Unautorized, please login')
+        )
+    }
+
+    if (user.role === 'ADMIN') {
+        return next(
+            new AppError(
+                'Admin cannot purchase a subscription', 400
+            )
+        )
+    }
+
+    const subscription = await razorpay.subscriptions.create({
+        plan_id: process.env.RAZORPAY_PLAN_ID,
+        customer_notify: 1,
+        total_count: 12
+    });
+
+    // user.subscription.id = subscription.id;
+    // user.subscription.status = subscription.status;
+
+    user.subscription = {
+  id: subscription.id,
+  status: subscription.status
+};
+
+
+
+
+    await user.save();
+
+    res.status(200).json({
+        success: true,
+        message: 'subscribed successfully',
+        subscription_id: subscription.id
+    });
+    } catch (e) {
+        return next(
+            new AppError(e.message, 500)
+        )
+    }
+
+}
+
+export const verifySubscription = async (req, res, next) => {
+    try{
+        const { id } = req.user;
+    const { razorpay_payment_id, razorpay_signature, razorpay_subscription_id } = req.body;
+
+    const user = await User.findById(id);
+    if (!user) {
+        return next(
+            new AppError('Admin cannot purchase a subscription', 400)
+        )
+    }
+
+    const subscriptionId = user.subscription.id;
+
+    const generatedSignature = crypto
+    .createHmac('sha256', process.env.RAZORPAY_SECRET)
+    .update(`${razorpay_payment_id}|${subscriptionId}`)
+    .digest('hex');
+
+    if (generatedSignature !== razorpay_signature) {
+        return next(
+            new AppError('Payment not verifeid, Please try again', 500)
+        )
+    }
+
+    await Payment.create({
+        razorpay_payment_id,
+        razorpay_signature,
+        razorpay_subscription_id,
+    });
+
+    user.subscription.status = 'active';
+    await user.save();
+
+    res.status(200).json({
+        success: true,
+        message: 'Payment verified successfully!'
+    });
+    } catch(e) {
+        return next(
+            new AppError(e.message, 500)
+        )
+    }
+}
+
+export const cancelSubscription = async (req, res, next) => {
+    try{
+        const { id } = req.user;
+
+    const user = await User.findById(id);
+
+    if(!user) {
+        return next(
+            new AppError('Unautorized, please login')
+        )
+    }
+
+    if (user.role === 'ADMIN') {
+        return next(
+            new AppError(
+                'Admin cannot purchase a subscription', 400
+            )
+        )
+    }
+
+    const subscriptionId = user.subscription.id;
+
+    const subscription =  await razorpay.subscriptions.cancel(
+        subscriptionId
+    )
+
+    user.subscription.status = subscription.status;
+
+    await user.save();
+
+    res.status(200).json({
+        success: true,
+        message: "Subscription cancelled successfully"
+    })
+
+    } catch (e) {
+        return next(
+            new AppError(e.message, 500)
+        )
+    }
+}
+
+// export const allPayments = async (req, res, next) => {
+//     try{
+//         const { count } = req.query;
+
+//         const subscription = await razorpay.subscriptions.all({
+//             count: count || 10,
+//         });
+
+//         res.status(200).json({
+//             success: true,
+//             message: 'All payments',
+//             subscription
+//         })
+//     } catch (e) {
+//         return next(new AppError(e.message, 500));
+//     }
+// }
+
+// export const allPayments = async (req, res, next) => {
+//     try {
+//         const { count } = req.query;
+
+//         // Fetch subscriptions from Razorpay (fetch up to 100 to get a realistic record)
+//         const subscriptions = await razorpay.subscriptions.all({
+//             count: count || 100,
+//         });
+
+//         // 1. Initialize a 12-month array with zeros (index 0 = Jan, 11 = Dec)
+//         const monthlySalesRecord = new Array(12).fill(0);
+
+//         // 2. Loop through each subscription and group by creation month
+//         const monthNames = [
+//             "Jan", "Feb", "Mar", "Apr", "May", "Jun",
+//             "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"
+//         ];
+
+//         if (subscriptions && subscriptions.items) {
+//             subscriptions.items.forEach((sub) => {
+//                 // sub.created_at is a UNIX timestamp in seconds
+//                 const date = new Date(sub.created_at * 1000);
+//                 const monthIndex = date.getMonth(); // 0 (Jan) to 11 (Dec)
+//                 monthlySalesRecord[monthIndex] += 1;
+//             });
+//         }
+
+
+
+export const allPayments = async (req, res, next) => {
+    try {
+        const { count } = req.query;
+
+        const subscriptions = await razorpay.subscriptions.all({
+            count: count || 100,
+        });
+
+        const monthlySalesRecord = new Array(12).fill(0);
+
+        const monthNames = [
+            "Jan", "Feb", "Mar", "Apr", "May", "Jun",
+            "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"
+        ];
+
+        if (subscriptions && subscriptions.items) {
+            subscriptions.items.forEach((sub) => {
+                const date = new Date(sub.created_at * 1000);
+                const monthIndex = date.getMonth();
+                monthlySalesRecord[monthIndex] += 1;
+            });
+        }
+
+        res.status(200).json({
+            success: true,
+            message: 'All payments records retrieved successfully',
+            allPayments: subscriptions,
+            finalMonths: monthNames,
+            monthlySalesRecord
+        });
+    } catch (e) {
+        return next(new AppError(e.message, 500));
+    }
+};
