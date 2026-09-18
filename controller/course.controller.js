@@ -32,7 +32,8 @@ const getLecturesByCourseId = async function(req, res, next) {
         res.status(200).json({
            success: true,
             message: 'Course lectures fetched successfully',
-            lectures: course.lectures
+            lectures: course.lectures,
+            course
         }); 
     } catch (e) {
         return next(
