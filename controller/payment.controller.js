@@ -151,53 +151,6 @@ export const cancelSubscription = async (req, res, next) => {
     }
 }
 
-// export const allPayments = async (req, res, next) => {
-//     try{
-//         const { count } = req.query;
-
-//         const subscription = await razorpay.subscriptions.all({
-//             count: count || 10,
-//         });
-
-//         res.status(200).json({
-//             success: true,
-//             message: 'All payments',
-//             subscription
-//         })
-//     } catch (e) {
-//         return next(new AppError(e.message, 500));
-//     }
-// }
-
-// export const allPayments = async (req, res, next) => {
-//     try {
-//         const { count } = req.query;
-
-//         // Fetch subscriptions from Razorpay (fetch up to 100 to get a realistic record)
-//         const subscriptions = await razorpay.subscriptions.all({
-//             count: count || 100,
-//         });
-
-//         // 1. Initialize a 12-month array with zeros (index 0 = Jan, 11 = Dec)
-//         const monthlySalesRecord = new Array(12).fill(0);
-
-//         // 2. Loop through each subscription and group by creation month
-//         const monthNames = [
-//             "Jan", "Feb", "Mar", "Apr", "May", "Jun",
-//             "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"
-//         ];
-
-//         if (subscriptions && subscriptions.items) {
-//             subscriptions.items.forEach((sub) => {
-//                 // sub.created_at is a UNIX timestamp in seconds
-//                 const date = new Date(sub.created_at * 1000);
-//                 const monthIndex = date.getMonth(); // 0 (Jan) to 11 (Dec)
-//                 monthlySalesRecord[monthIndex] += 1;
-//             });
-//         }
-
-
-
 export const allPayments = async (req, res, next) => {
     try {
         const { count } = req.query;

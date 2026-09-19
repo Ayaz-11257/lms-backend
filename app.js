@@ -34,11 +34,6 @@ app.use('/api/v1/courses', courseRoutes)
 app.use('/api/v1/payments', paymentRoutes)
 app.use('/api/v1', miscRoute);
 
-
-// app.all( '*', (req, res) => {
-//     res.status(404).send('OOPS! 404 page not found');
-// });
-
 app.use(errorMiddleware);
 
 export default app;
